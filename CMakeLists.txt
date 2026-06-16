@@ -35,7 +35,7 @@ pico_sdk_init()
 
 # Add executable. Default name is the project name, version 0.1
 
-add_executable(Prim_MacroPad Prim_MacroPad.c usb_descriptors.c)
+add_executable(Prim_MacroPad Prim_MacroPad.c usb_descriptors.c keyboard.c)
 
 pico_set_program_name(Prim_MacroPad "Prim_MacroPad")
 pico_set_program_version(Prim_MacroPad "0.1")
