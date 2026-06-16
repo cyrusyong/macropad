@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include "pico/stdlib.h"
+#include "tusb.h"
 
 #define SW_1 28
 #define LED_GREEN 13
@@ -14,7 +15,11 @@ int main()
     gpio_init(LED_GREEN);
     gpio_set_dir(LED_GREEN, GPIO_OUT);
 
+    tusb_init();
+
     while (true) {
+        tud_task();
+
         bool switch_on = gpio_get(SW_1);
 
         if (switch_on) {
