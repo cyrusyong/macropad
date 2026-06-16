@@ -4,56 +4,60 @@
 #include "tusb.h"
 #include "keyboard.h"
 
-// --- Switch 1: F-key autoclicker ---
-static bool     sw1_key_down    = false;
-static uint32_t sw1_key_down_at = 0;
-static uint32_t sw1_next_send   = 0;
+// ----------------------------------------------------------------
+// Switch 1 — F-key autoclicker (toggle)
+// ----------------------------------------------------------------
+static bool     autoclicker_active  = false;
+static bool     prev_button         = false;
+static bool     key_down            = false;
+static uint32_t key_down_at         = 0;
+static uint32_t next_send           = 0;
 
-static void sw1_task(bool active) {
-    uint32_t now = board_millis();
+bool autoclicker_on(bool button_pressed) {
+    // Toggle on rising edge (button just pressed)
+    if (button_pressed && !prev_button) {
+        autoclicker_active = !autoclicker_active;
 
-    if (active) {
-        if (sw1_key_down) {
-            if (now - sw1_key_down_at >= 50) {
+        if (!autoclicker_active && key_down) {
+            tud_hid_keyboard_report(0, 0, NULL);
+            key_down  = false;
+            next_send = 0;
+        }
+    }
+    prev_button = button_pressed;
+
+    if (autoclicker_active) {
+        uint32_t now = board_millis();
+
+        if (key_down) {
+            if (now - key_down_at >= 50) {
                 tud_hid_keyboard_report(0, 0, NULL);
-                sw1_key_down  = false;
-                sw1_next_send = now + 500 + rand() % 1001;
+                key_down  = false;
+                next_send = now + 500 + rand() % 1001;
             }
-        } else if (now >= sw1_next_send) {
+        } else if (now >= next_send) {
             uint8_t keys[6] = {HID_KEY_F};
             tud_hid_keyboard_report(0, 0, keys);
-            sw1_key_down    = true;
-            sw1_key_down_at = now;
+            key_down    = true;
+            key_down_at = now;
         }
-    } else if (sw1_key_down) {
-        tud_hid_keyboard_report(0, 0, NULL);
-        sw1_key_down  = false;
-        sw1_next_send = 0;
     }
+
+    return autoclicker_active;
 }
 
-// --- Switch 2: TBD ---
-static void sw2_task(bool active) {
-    (void)active;
-}
+// ----------------------------------------------------------------
+// Switch 2 — TBD
+// ----------------------------------------------------------------
 
-// --- Switch 3: TBD ---
-static void sw3_task(bool active) {
-    (void)active;
-}
+// ----------------------------------------------------------------
+// Switch 3 — TBD
+// ----------------------------------------------------------------
 
-// --- Switch 4: TBD ---
-static void sw4_task(bool active) {
-    (void)active;
-}
+// ----------------------------------------------------------------
+// Switch 4 — TBD
+// ----------------------------------------------------------------
 
 void keyboard_init(void) {
     srand(time_us_32());
-}
-
-void keyboard_task(bool sw[4]) {
-    sw1_task(sw[0]);
-    sw2_task(sw[1]);
-    sw3_task(sw[2]);
-    sw4_task(sw[3]);
 }

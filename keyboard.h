@@ -5,6 +5,8 @@
 #include <stdbool.h>
 
 void keyboard_init(void);
-void keyboard_task(bool sw[4]);
+
+// Returns true while the autoclicker is toggled on
+bool autoclicker_on(bool button_pressed);
 
 #endif

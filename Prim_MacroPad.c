@@ -38,15 +38,11 @@ int main()
     {
         tud_task();
 
-        bool sw[4] = {
-            gpio_get(SW_1),
-            gpio_get(SW_2),
-            gpio_get(SW_3),
-            gpio_get(SW_4),
-        };
+        bool led_on = autoclicker_on(gpio_get(SW_1));
+        gpio_put(LED_1, led_on);
 
-        gpio_put(LED_1, sw[0]);
-
-        keyboard_task(sw);
+        // SW_2: TBD
+        // SW_3: TBD
+        // SW_4: TBD
     }
 }
