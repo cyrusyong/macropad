@@ -38,16 +38,18 @@ int main()
     {
         tud_task();
 
+        // SW_1: Autoclicker
         bool led_on = autoclicker_on(gpio_get(SW_1));
         gpio_put(LED_1, led_on);
 
-        // SW_2: TBD
-        bool sw2_click = gpio_get(SW_2);
+        // SW_2: Open application by typing in Start Menu
+        open_application(gpio_get(SW_2), "genshin impact");
 
-        if (sw2_click) {
-            open_application("genshin impact!!");
-        }
-        // SW_3: TBD
-        // SW_4: TBD
+        // SW_3: Open Discord, search for user, send them something
+        send_disc_message(gpio_get(SW_3), "prim", "i love you!!");
+
+        // SW_4: Shutdown PC after 30 seconds, abort if needed
+        shutdown_task(gpio_get(SW_4));
+
     }
 }
