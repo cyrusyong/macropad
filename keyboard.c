@@ -5,7 +5,8 @@
 #include "keyboard.h"
 
 static void hid_wait(uint32_t ms);
-static void type_key(uint8_t key, uint32_t ms_wait);
+static void type_key(uint8_t key, uint8_t modifier, uint32_t ms_wait);
+static uint8_t ascii_to_hid(char c);
 
 // ----------------------------------------------------------------
 // Switch 1 — F-key autoclicker (toggle)
@@ -72,7 +73,16 @@ bool autoclicker_on(bool button_pressed)
 // ----------------------------------------------------------------
 void open_application(const char *application_name)
 {
-    type_key(HID_KEY_F, 500);
+    // Windows Key Press
+    type_key(0, KEYBOARD_MODIFIER_LEFTGUI, 500);
+
+    // Type application name
+    for (int i = 0; application_name[i]; i++) {
+        type_key(ascii_to_hid(application_name[i]), 0, 10);
+    }
+
+    // Hit enter
+    type_key(HID_KEY_ENTER, 0, 50);
 }
 
 // ----------------------------------------------------------------
@@ -97,12 +107,24 @@ static void hid_wait(uint32_t ms)
     }
 }
 
-static void type_key(uint8_t key, uint32_t ms_wait)
+static void type_key(uint8_t key, uint8_t modifier, uint32_t ms_wait)
 {
     uint8_t keys[6] = {key};
-    tud_hid_keyboard_report(0, 0, keys);
+    tud_hid_keyboard_report(0, modifier, keys);
     hid_wait(ms_wait);
 
     tud_hid_keyboard_report(0, 0, NULL);
-    hid_wait(50);
+    hid_wait(ms_wait);
 }
+
+static uint8_t ascii_to_hid(char c) {
+    if (c >= 'a' && c <= 'z') return HID_KEY_A + (c - 'a');
+    if (c >= 'A' && c <= 'Z') return HID_KEY_A + (c - 'A');
+    if (c >= '1' && c <= '9') return HID_KEY_1 + (c - '1');
+    if (c == '0')              return HID_KEY_0;
+    if (c == ' ')              return HID_KEY_SPACE;
+    if (c == '\n')             return HID_KEY_ENTER;
+    if (c == '\t')             return HID_KEY_TAB;
+    return 0;
+}
+
