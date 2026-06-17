@@ -42,6 +42,11 @@ int main()
         gpio_put(LED_1, led_on);
 
         // SW_2: TBD
+        bool sw2_click = gpio_get(SW_2);
+
+        if (sw2_click) {
+            open_application("genshin impact!!");
+        }
         // SW_3: TBD
         // SW_4: TBD
     }

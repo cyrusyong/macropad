@@ -9,4 +9,6 @@ void keyboard_init(void);
 // Returns true while the autoclicker is toggled on
 bool autoclicker_on(bool button_pressed);
 
+void open_application(const char *application_name);
+
 #endif
