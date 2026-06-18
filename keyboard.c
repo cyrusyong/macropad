@@ -200,6 +200,7 @@ static hid_key_t ascii_to_hid(char c)
     if (c == ' ')  return K(HID_KEY_SPACE);
     if (c == '\n') return K(HID_KEY_ENTER);
     if (c == '\t') return K(HID_KEY_TAB);
+    if (c == '/')  return K(HID_KEY_SLASH);
     if (c == '!')  return KS(HID_KEY_1);
     if (c == '@')  return KS(HID_KEY_2);
     if (c == '#')  return KS(HID_KEY_3);
