@@ -91,7 +91,9 @@ void send_disc_message(bool button_pressed, const char *username, const char *me
 {
     if (button_pressed && !sw3_prev) {
         // Focus Discord via Start Menu, then wait for it to open
-        type_key(HID_KEY_3, KEYBOARD_MODIFIER_LEFTGUI, 50);
+        type_key(0, KEYBOARD_MODIFIER_LEFTGUI, 50);
+        type_string("discord");
+        type_key(HID_KEY_ENTER, 0, 50);
         hid_wait(500);
 
         // Search for user with Ctrl+K and send message
@@ -175,7 +177,7 @@ static void type_string(const char *str)
 {
     for (int i = 0; str[i]; i++) {
         hid_key_t k = ascii_to_hid(str[i]);
-        type_key(k.key, k.modifier, 50);
+        type_key(k.key, k.modifier, 10);
     }
 }
 
