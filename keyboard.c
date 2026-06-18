@@ -15,46 +15,58 @@ static void      type_string(const char *str);
 static void      run_command(const char *cmd);
 static hid_key_t ascii_to_hid(char c);
 
+#define DEBOUNCE_MS         50    // button must be stable this long before firing
+#define KEY_WAIT_MS         50    // inter-key delay in type_key calls
+#define AUTOCLICKER_HOLD_MS 50    // how long F is held each click
+#define AUTOCLICKER_MIN_GAP 500   // minimum gap between clicks
+#define AUTOCLICKER_JITTER  1001  // rand() range added to gap
+#define DISCORD_OPEN_MS     500   // wait for Discord window to appear
+#define WINR_SETTLE_MS      500   // wait after Win+R before typing
+#define SHUTDOWN_HOLD_MS    3000  // hold duration to trigger shutdown
+
+static inline void release_all_keys(void)
+{
+    tud_hid_keyboard_report(0, 0, NULL);
+}
+
 // ----------------------------------------------------------------
 // Switch 1 — F-key autoclicker (toggle)
 // ----------------------------------------------------------------
-static bool     autoclicker_active  = false;
-static bool     prev_button         = false;
-static uint32_t stable_since        = 0;
-static bool     toggled_this_press  = false;
-static bool     key_down            = false;
-static uint32_t key_down_at         = 0;
-static uint32_t next_send           = 0;
-
-#define DEBOUNCE_MS 50
+static bool     autoclicker_active = false;
+static bool     sw1_prev           = false;
+static uint32_t sw1_stable_since   = 0;
+static bool     sw1_toggled        = false;
+static bool     key_down           = false;
+static uint32_t key_down_at        = 0;
+static uint32_t next_send          = 0;
 
 bool autoclicker_on(bool button_pressed)
 {
     uint32_t now = board_millis();
 
     if (button_pressed) {
-        if (!prev_button) {
-            stable_since       = now;
-            toggled_this_press = false;
-        } else if (!toggled_this_press && (now - stable_since >= DEBOUNCE_MS)) {
+        if (!sw1_prev) {
+            sw1_stable_since = now;
+            sw1_toggled      = false;
+        } else if (!sw1_toggled && (now - sw1_stable_since >= DEBOUNCE_MS)) {
             autoclicker_active = !autoclicker_active;
-            toggled_this_press = true;
+            sw1_toggled        = true;
 
             if (!autoclicker_active && key_down) {
-                tud_hid_keyboard_report(0, 0, NULL);
+                release_all_keys();
                 key_down  = false;
                 next_send = 0;
             }
         }
     }
-    prev_button = button_pressed;
+    sw1_prev = button_pressed;
 
     if (autoclicker_active) {
         if (key_down) {
-            if (now - key_down_at >= 50) {
-                tud_hid_keyboard_report(0, 0, NULL);
+            if (now - key_down_at >= AUTOCLICKER_HOLD_MS) {
+                release_all_keys();
                 key_down  = false;
-                next_send = now + 500 + rand() % 1001;
+                next_send = now + AUTOCLICKER_MIN_GAP + rand() % AUTOCLICKER_JITTER;
             }
         } else if (now >= next_send) {
             uint8_t keys[6] = {HID_KEY_F};
@@ -70,14 +82,24 @@ bool autoclicker_on(bool button_pressed)
 // ----------------------------------------------------------------
 // Switch 2 — Open Application
 // ----------------------------------------------------------------
-static bool sw2_prev = false;
+static bool     sw2_prev         = false;
+static uint32_t sw2_stable_since = 0;
+static bool     sw2_triggered    = false;
 
 void open_application(bool button_pressed, const char *application_name)
 {
-    if (button_pressed && !sw2_prev) {
-        type_key(0, KEYBOARD_MODIFIER_LEFTGUI, 50);
-        type_string(application_name);
-        type_key(HID_KEY_ENTER, 0, 50);
+    uint32_t now = board_millis();
+
+    if (button_pressed) {
+        if (!sw2_prev) {
+            sw2_stable_since = now;
+            sw2_triggered    = false;
+        } else if (!sw2_triggered && (now - sw2_stable_since >= DEBOUNCE_MS)) {
+            sw2_triggered = true;
+            type_key(0, KEYBOARD_MODIFIER_LEFTGUI, KEY_WAIT_MS);
+            type_string(application_name);
+            type_key(HID_KEY_ENTER, 0, KEY_WAIT_MS);
+        }
     }
     sw2_prev = button_pressed;
 }
@@ -85,24 +107,35 @@ void open_application(bool button_pressed, const char *application_name)
 // ----------------------------------------------------------------
 // Switch 3 — Send message on Discord
 // ----------------------------------------------------------------
-static bool sw3_prev = false;
+static bool     sw3_prev         = false;
+static uint32_t sw3_stable_since = 0;
+static bool     sw3_triggered    = false;
 
 void send_disc_message(bool button_pressed, const char *username, const char *message)
 {
-    if (button_pressed && !sw3_prev) {
-        // Focus Discord via Start Menu, then wait for it to open
-        type_key(0, KEYBOARD_MODIFIER_LEFTGUI, 50);
-        type_string("discord");
-        type_key(HID_KEY_ENTER, 0, 50);
-        hid_wait(500);
+    uint32_t now = board_millis();
 
-        // Search for user with Ctrl+K and send message
-        type_key(HID_KEY_K, KEYBOARD_MODIFIER_LEFTCTRL, 50);
-        type_string(username);
-        type_key(HID_KEY_ENTER, 0, 50);
+    if (button_pressed) {
+        if (!sw3_prev) {
+            sw3_stable_since = now;
+            sw3_triggered    = false;
+        } else if (!sw3_triggered && (now - sw3_stable_since >= DEBOUNCE_MS)) {
+            sw3_triggered = true;
 
-        type_string(message);
-        type_key(HID_KEY_ENTER, 0, 50);
+            // Focus Discord via Start Menu, then wait for it to open
+            type_key(0, KEYBOARD_MODIFIER_LEFTGUI, KEY_WAIT_MS);
+            type_string("discord");
+            type_key(HID_KEY_ENTER, 0, KEY_WAIT_MS);
+            hid_wait(DISCORD_OPEN_MS);
+
+            // Search for user with Ctrl+K and send message
+            type_key(HID_KEY_K, KEYBOARD_MODIFIER_LEFTCTRL, KEY_WAIT_MS);
+            type_string(username);
+            type_key(HID_KEY_ENTER, 0, KEY_WAIT_MS);
+
+            type_string(message);
+            // type_key(HID_KEY_ENTER, 0, KEY_WAIT_MS);
+        }
     }
     sw3_prev = button_pressed;
 }
@@ -129,7 +162,7 @@ void shutdown_task(bool button_pressed)
             if (!sw4_prev) {
                 sw4_held_since = now;
                 sw4_triggered  = false;
-            } else if (!sw4_triggered && (now - sw4_held_since >= 3000)) {
+            } else if (!sw4_triggered && (now - sw4_held_since >= SHUTDOWN_HOLD_MS)) {
                 run_command("shutdown /s /t 30");
                 shutdown_state = SHUTDOWN_PENDING;
                 sw4_triggered  = true;
@@ -169,7 +202,7 @@ static void type_key(uint8_t key, uint8_t modifier, uint32_t ms_wait)
     tud_hid_keyboard_report(0, modifier, keys);
     hid_wait(ms_wait);
 
-    tud_hid_keyboard_report(0, 0, NULL);
+    release_all_keys();
     hid_wait(ms_wait);
 }
 
@@ -177,15 +210,15 @@ static void type_string(const char *str)
 {
     for (int i = 0; str[i]; i++) {
         hid_key_t k = ascii_to_hid(str[i]);
-        type_key(k.key, k.modifier, 10);
+        type_key(k.key, k.modifier, 20);
     }
 }
 
 static void run_command(const char *cmd)
 {
-    type_key(HID_KEY_R, KEYBOARD_MODIFIER_LEFTGUI, 500);
+    type_key(HID_KEY_R, KEYBOARD_MODIFIER_LEFTGUI, WINR_SETTLE_MS);
     type_string(cmd);
-    type_key(HID_KEY_ENTER, 0, 50);
+    type_key(HID_KEY_ENTER, 0, KEY_WAIT_MS);
 }
 
 static hid_key_t ascii_to_hid(char c)

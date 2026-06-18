@@ -10,23 +10,19 @@
 
 #define LED_1 13
 
+static void init_switch(uint gpio)
+{
+    gpio_init(gpio);
+    gpio_set_dir(gpio, GPIO_IN);
+    gpio_pull_down(gpio);
+}
+
 int main()
 {
-    gpio_init(SW_1);
-    gpio_set_dir(SW_1, GPIO_IN);
-    gpio_pull_down(SW_1);
-
-    gpio_init(SW_2);
-    gpio_set_dir(SW_2, GPIO_IN);
-    gpio_pull_down(SW_2);
-
-    gpio_init(SW_3);
-    gpio_set_dir(SW_3, GPIO_IN);
-    gpio_pull_down(SW_3);
-
-    gpio_init(SW_4);
-    gpio_set_dir(SW_4, GPIO_IN);
-    gpio_pull_down(SW_4);
+    init_switch(SW_1);
+    init_switch(SW_2);
+    init_switch(SW_3);
+    init_switch(SW_4);
 
     gpio_init(LED_1);
     gpio_set_dir(LED_1, GPIO_OUT);
@@ -50,6 +46,5 @@ int main()
 
         // SW_4: Shutdown PC after 30 seconds, abort if needed
         shutdown_task(gpio_get(SW_4));
-
     }
 }
