@@ -13,6 +13,7 @@ static void      hid_wait(uint32_t ms);
 static void      type_key(uint8_t key, uint8_t modifier, uint32_t ms_wait);
 static void      type_string(const char *str);
 static void      run_command(const char *cmd);
+static void      mouse_click(void);
 static hid_key_t ascii_to_hid(char c);
 
 #define DEBOUNCE_MS         50    // button must be stable this long before firing
@@ -20,13 +21,13 @@ static hid_key_t ascii_to_hid(char c);
 #define AUTOCLICKER_HOLD_MS 50    // how long F is held each click
 #define AUTOCLICKER_MIN_GAP 500   // minimum gap between clicks
 #define AUTOCLICKER_JITTER  1001  // rand() range added to gap
-#define DISCORD_OPEN_MS     500   // wait for Discord window to appear
+#define DISCORD_OPEN_MS     800   // wait for Discord window to appear
 #define WINR_SETTLE_MS      500   // wait after Win+R before typing
 #define SHUTDOWN_HOLD_MS    3000  // hold duration to trigger shutdown
 
 static inline void release_all_keys(void)
 {
-    tud_hid_keyboard_report(0, 0, NULL);
+    tud_hid_keyboard_report(1, 0, NULL);
 }
 
 // ----------------------------------------------------------------
@@ -70,7 +71,7 @@ bool autoclicker_on(bool button_pressed)
             }
         } else if (now >= next_send) {
             uint8_t keys[6] = {HID_KEY_F};
-            tud_hid_keyboard_report(0, 0, keys);
+            tud_hid_keyboard_report(1, 0, keys);
             key_down    = true;
             key_down_at = now;
         }
@@ -88,6 +89,7 @@ static bool     sw2_triggered    = false;
 
 void open_application(bool button_pressed, const char *application_name)
 {
+    (void)application_name;
     uint32_t now = board_millis();
 
     if (button_pressed) {
@@ -96,9 +98,19 @@ void open_application(bool button_pressed, const char *application_name)
             sw2_triggered    = false;
         } else if (!sw2_triggered && (now - sw2_stable_since >= DEBOUNCE_MS)) {
             sw2_triggered = true;
-            type_key(0, KEYBOARD_MODIFIER_LEFTGUI, KEY_WAIT_MS);
-            type_string(application_name);
+            // Win+3 to focus the third taskbar app
+            type_key(HID_KEY_3, KEYBOARD_MODIFIER_LEFTGUI, KEY_WAIT_MS);
+            // Left arrow to select, then Enter to open
+            type_key(HID_KEY_ARROW_LEFT, 0, KEY_WAIT_MS);
             type_key(HID_KEY_ENTER, 0, KEY_WAIT_MS);
+            // Wait 25 seconds for the app to load
+            hid_wait(25000);
+            // First left click
+            mouse_click();
+            // Wait 20 seconds
+            hid_wait(20000);
+            // Second left click
+            mouse_click();
         }
     }
     sw2_prev = button_pressed;
@@ -130,11 +142,12 @@ void send_disc_message(bool button_pressed, const char *username, const char *me
 
             // Search for user with Ctrl+K and send message
             type_key(HID_KEY_K, KEYBOARD_MODIFIER_LEFTCTRL, KEY_WAIT_MS);
-            type_string(username);
+            hid_wait(100);
             type_key(HID_KEY_ENTER, 0, KEY_WAIT_MS);
+            hid_wait(100);
 
             type_string(message);
-            // type_key(HID_KEY_ENTER, 0, KEY_WAIT_MS);
+            type_key(HID_KEY_ENTER, 0, KEY_WAIT_MS);
         }
     }
     sw3_prev = button_pressed;
@@ -199,11 +212,19 @@ static void hid_wait(uint32_t ms)
 static void type_key(uint8_t key, uint8_t modifier, uint32_t ms_wait)
 {
     uint8_t keys[6] = {key};
-    tud_hid_keyboard_report(0, modifier, keys);
+    tud_hid_keyboard_report(1, modifier, keys);
     hid_wait(ms_wait);
 
     release_all_keys();
     hid_wait(ms_wait);
+}
+
+static void mouse_click(void)
+{
+    tud_hid_mouse_report(2, 0x01, 0, 0, 0, 0);  // left button down
+    hid_wait(50);
+    tud_hid_mouse_report(2, 0x00, 0, 0, 0, 0);  // release
+    hid_wait(50);
 }
 
 static void type_string(const char *str)

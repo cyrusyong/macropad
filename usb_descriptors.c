@@ -1,8 +1,9 @@
 #include "tusb.h"
 
-// HID report descriptor — tells the PC this is a keyboard
+// HID report descriptor — keyboard (ID 1) + mouse (ID 2)
 uint8_t const desc_hid_report[] = {
-    TUD_HID_REPORT_DESC_KEYBOARD()
+    TUD_HID_REPORT_DESC_KEYBOARD(HID_REPORT_ID(1)),
+    TUD_HID_REPORT_DESC_MOUSE(HID_REPORT_ID(2)),
 };
 
 // Device descriptor — what shows up in Device Manager

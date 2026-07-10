@@ -38,11 +38,11 @@ int main()
         bool led_on = autoclicker_on(gpio_get(SW_1));
         gpio_put(LED_1, led_on);
 
-        // SW_2: Open application by typing in Start Menu
+        // SW_2: Open application on taskbar position 3
         open_application(gpio_get(SW_2), "genshin impact");
 
         // SW_3: Open Discord, search for user, send them something
-        send_disc_message(gpio_get(SW_3), "prim", "i love you!!");
+        send_disc_message(gpio_get(SW_3), "johns creek shooter", "CYRUUSUSUSUSUSS I LOVE YOU OMGOGMOGOGMG!!");
 
         // SW_4: Shutdown PC after 30 seconds, abort if needed
         shutdown_task(gpio_get(SW_4));
