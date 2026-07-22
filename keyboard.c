@@ -185,6 +185,7 @@ bool shutdown_task(bool button_pressed)
     if (shutdown_state == SHUTDOWN_IDLE) {
         if (button_pressed && !sw4_prev) {
             led = true;
+            gpio_put(g_led_pin, true);
             run_command("shutdown /s /t 30");
             shutdown_triggered_at = board_millis();
             shutdown_state = SHUTDOWN_PENDING;
