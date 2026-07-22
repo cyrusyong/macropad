@@ -1,8 +1,11 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include "bsp/board.h"
+#include "hardware/gpio.h"
 #include "tusb.h"
 #include "keyboard.h"
+
+static uint g_led_pin = 0;
 
 typedef struct {
     uint8_t key;
@@ -23,7 +26,6 @@ static hid_key_t ascii_to_hid(char c);
 #define AUTOCLICKER_JITTER  1001  // rand() range added to gap
 #define DISCORD_OPEN_MS     800   // wait for Discord window to appear
 #define WINR_SETTLE_MS      500   // wait after Win+R before typing
-#define SHUTDOWN_HOLD_MS    3000  // hold duration to trigger shutdown
 
 static inline void release_all_keys(void)
 {
@@ -98,9 +100,14 @@ void open_application(bool button_pressed, const char *application_name)
             sw2_triggered    = false;
         } else if (!sw2_triggered && (now - sw2_stable_since >= DEBOUNCE_MS)) {
             sw2_triggered = true;
-            // Win+3 to focus the third taskbar app
+            gpio_put(g_led_pin, true);
+            // Close Start Menu if open, so Win+3 chord goes cleanly to the taskbar
+            type_key(HID_KEY_ESCAPE, 0, KEY_WAIT_MS);
+            // Win+3 to launch the third taskbar app
             type_key(HID_KEY_3, KEYBOARD_MODIFIER_LEFTGUI, KEY_WAIT_MS);
-            // Left arrow to select, then Enter to open
+            // Wait for UAC prompt to appear and take focus
+            hid_wait(2000);
+            // Left arrow selects Yes on the UAC prompt, Enter confirms
             type_key(HID_KEY_ARROW_LEFT, 0, KEY_WAIT_MS);
             type_key(HID_KEY_ENTER, 0, KEY_WAIT_MS);
             // Wait 25 seconds for the app to load
@@ -108,9 +115,10 @@ void open_application(bool button_pressed, const char *application_name)
             // First left click
             mouse_click();
             // Wait 20 seconds
-            hid_wait(20000);
+            hid_wait(15000);
             // Second left click
             mouse_click();
+            gpio_put(g_led_pin, false);
         }
     }
     sw2_prev = button_pressed;
@@ -133,6 +141,7 @@ void send_disc_message(bool button_pressed, const char *username, const char *me
             sw3_triggered    = false;
         } else if (!sw3_triggered && (now - sw3_stable_since >= DEBOUNCE_MS)) {
             sw3_triggered = true;
+            gpio_put(g_led_pin, true);
 
             // Focus Discord via Start Menu, then wait for it to open
             type_key(0, KEYBOARD_MODIFIER_LEFTGUI, KEY_WAIT_MS);
@@ -143,11 +152,14 @@ void send_disc_message(bool button_pressed, const char *username, const char *me
             // Search for user with Ctrl+K and send message
             type_key(HID_KEY_K, KEYBOARD_MODIFIER_LEFTCTRL, KEY_WAIT_MS);
             hid_wait(100);
+            type_string(username);
+            hid_wait(100);
             type_key(HID_KEY_ENTER, 0, KEY_WAIT_MS);
             hid_wait(100);
 
             type_string(message);
             type_key(HID_KEY_ENTER, 0, KEY_WAIT_MS);
+            gpio_put(g_led_pin, false);
         }
     }
     sw3_prev = button_pressed;
@@ -161,43 +173,45 @@ typedef enum {
     SHUTDOWN_PENDING,
 } shutdown_state_t;
 
-static shutdown_state_t shutdown_state = SHUTDOWN_IDLE;
-static bool             sw4_prev       = false;
-static uint32_t         sw4_held_since = 0;
-static bool             sw4_triggered  = false;
+static shutdown_state_t shutdown_state        = SHUTDOWN_IDLE;
+static bool             sw4_prev              = false;
+static uint32_t         shutdown_triggered_at = 0;
 
-void shutdown_task(bool button_pressed)
+bool shutdown_task(bool button_pressed)
 {
     uint32_t now = board_millis();
+    bool led = false;
 
     if (shutdown_state == SHUTDOWN_IDLE) {
-        if (button_pressed) {
-            if (!sw4_prev) {
-                sw4_held_since = now;
-                sw4_triggered  = false;
-            } else if (!sw4_triggered && (now - sw4_held_since >= SHUTDOWN_HOLD_MS)) {
-                run_command("shutdown /s /t 30");
-                shutdown_state = SHUTDOWN_PENDING;
-                sw4_triggered  = true;
-            }
+        if (button_pressed && !sw4_prev) {
+            led = true;
+            run_command("shutdown /s /t 30");
+            shutdown_triggered_at = board_millis();
+            shutdown_state = SHUTDOWN_PENDING;
         }
     } else {
-        // Shutdown pending — any press cancels it
+        // Shutdown pending — press cancels it
         if (button_pressed && !sw4_prev) {
             run_command("shutdown /a");
             shutdown_state = SHUTDOWN_IDLE;
+            led = false;
+        } else {
+            // LED on until the 29th second, then off
+            led = (now - shutdown_triggered_at) < 29000;
         }
     }
 
     sw4_prev = button_pressed;
+    return led;
 }
 
 // ================================================================
 // Helpers
 // ================================================================
 
-void keyboard_init(void)
+void keyboard_init(uint led_pin)
 {
+    g_led_pin = led_pin;
     srand(time_us_32());
 }
 

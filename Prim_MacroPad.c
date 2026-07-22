@@ -28,15 +28,14 @@ int main()
     gpio_set_dir(LED_1, GPIO_OUT);
 
     tusb_init();
-    keyboard_init();
+    keyboard_init(LED_1);
 
     while (true)
     {
         tud_task();
 
         // SW_1: Autoclicker
-        bool led_on = autoclicker_on(gpio_get(SW_1));
-        gpio_put(LED_1, led_on);
+        bool autoclicker_led = autoclicker_on(gpio_get(SW_1));
 
         // SW_2: Open application on taskbar position 3
         open_application(gpio_get(SW_2), "genshin impact");
@@ -45,6 +44,8 @@ int main()
         send_disc_message(gpio_get(SW_3), "johns creek shooter", "CYRUUSUSUSUSUSS I LOVE YOU OMGOGMOGOGMG!!");
 
         // SW_4: Shutdown PC after 30 seconds, abort if needed
-        shutdown_task(gpio_get(SW_4));
+        bool shutdown_led = shutdown_task(gpio_get(SW_4));
+
+        gpio_put(LED_1, autoclicker_led || shutdown_led);
     }
 }
