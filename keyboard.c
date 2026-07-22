@@ -5,7 +5,11 @@
 #include "tusb.h"
 #include "keyboard.h"
 
-static uint g_led_pin = 0;
+static uint     g_led_pin              = 0;
+static uint     g_cancel_pin           = 0;
+static bool     g_cancel_prev          = false;
+static bool     g_cancelled            = false;
+static uint32_t g_cancel_debounce_at   = 0;
 
 typedef struct {
     uint8_t key;
@@ -89,7 +93,7 @@ static bool     sw2_prev         = false;
 static uint32_t sw2_stable_since = 0;
 static bool     sw2_triggered    = false;
 
-void open_application(bool button_pressed, const char *application_name)
+void open_application(bool button_pressed, uint button_pin, const char *application_name)
 {
     (void)application_name;
     uint32_t now = board_millis();
@@ -100,14 +104,14 @@ void open_application(bool button_pressed, const char *application_name)
             sw2_triggered    = false;
         } else if (!sw2_triggered && (now - sw2_stable_since >= DEBOUNCE_MS)) {
             sw2_triggered = true;
+            g_cancel_pin  = button_pin;
+            g_cancel_prev = true;
+            g_cancelled   = false;
             gpio_put(g_led_pin, true);
-            // Close Start Menu if open, so Win+3 chord goes cleanly to the taskbar
+            // Close Start Menu if open
             type_key(HID_KEY_ESCAPE, 0, KEY_WAIT_MS);
-            // Win+3 to launch the third taskbar app
             type_key(HID_KEY_3, KEYBOARD_MODIFIER_LEFTGUI, KEY_WAIT_MS);
-            // Wait for UAC prompt to appear and take focus
             hid_wait(2000);
-            // Left arrow selects Yes on the UAC prompt, Enter confirms
             type_key(HID_KEY_ARROW_LEFT, 0, KEY_WAIT_MS);
             type_key(HID_KEY_ENTER, 0, KEY_WAIT_MS);
             // Wait 25 seconds for the app to load
@@ -115,10 +119,12 @@ void open_application(bool button_pressed, const char *application_name)
             // First left click
             mouse_click();
             // Wait 20 seconds
-            hid_wait(15000);
+            hid_wait(20000);
             // Second left click
             mouse_click();
             gpio_put(g_led_pin, false);
+            g_cancel_pin = 0;
+            g_cancelled  = false;
         }
     }
     sw2_prev = button_pressed;
@@ -131,7 +137,7 @@ static bool     sw3_prev         = false;
 static uint32_t sw3_stable_since = 0;
 static bool     sw3_triggered    = false;
 
-void send_disc_message(bool button_pressed, const char *username, const char *message)
+void send_disc_message(bool button_pressed, uint button_pin, const char *username, const char *message)
 {
     uint32_t now = board_millis();
 
@@ -141,6 +147,9 @@ void send_disc_message(bool button_pressed, const char *username, const char *me
             sw3_triggered    = false;
         } else if (!sw3_triggered && (now - sw3_stable_since >= DEBOUNCE_MS)) {
             sw3_triggered = true;
+            g_cancel_pin  = button_pin;
+            g_cancel_prev = true;
+            g_cancelled   = false;
             gpio_put(g_led_pin, true);
 
             // Focus Discord via Start Menu, then wait for it to open
@@ -160,6 +169,8 @@ void send_disc_message(bool button_pressed, const char *username, const char *me
             type_string(message);
             type_key(HID_KEY_ENTER, 0, KEY_WAIT_MS);
             gpio_put(g_led_pin, false);
+            g_cancel_pin = 0;
+            g_cancelled  = false;
         }
     }
     sw3_prev = button_pressed;
@@ -191,7 +202,7 @@ bool shutdown_task(bool button_pressed)
             shutdown_state = SHUTDOWN_PENDING;
         }
     } else {
-        // Shutdown pending — press cancels it
+        // Shutdown pending, press cancels
         if (button_pressed && !sw4_prev) {
             run_command("shutdown /a");
             shutdown_state = SHUTDOWN_IDLE;
@@ -221,21 +232,39 @@ static void hid_wait(uint32_t ms)
     absolute_time_t deadline = make_timeout_time_ms(ms);
     while (!time_reached(deadline)) {
         tud_task();
+        if (g_cancelled) return;
+        if (g_cancel_pin) {
+            bool pressed = gpio_get(g_cancel_pin);
+            if (pressed && !g_cancel_prev) {
+                g_cancel_debounce_at = board_millis();
+            } else if (!pressed) {
+                g_cancel_debounce_at = 0;
+            }
+            if (g_cancel_debounce_at &&
+                (board_millis() - g_cancel_debounce_at >= DEBOUNCE_MS)) {
+                g_cancelled          = true;
+                g_cancel_debounce_at = 0;
+                release_all_keys();
+                gpio_put(g_led_pin, false);
+            }
+            g_cancel_prev = pressed;
+        }
     }
 }
 
 static void type_key(uint8_t key, uint8_t modifier, uint32_t ms_wait)
 {
+    if (g_cancelled) return;
     uint8_t keys[6] = {key};
     tud_hid_keyboard_report(1, modifier, keys);
     hid_wait(ms_wait);
-
     release_all_keys();
     hid_wait(ms_wait);
 }
 
 static void mouse_click(void)
 {
+    if (g_cancelled) return;
     tud_hid_mouse_report(2, 0x01, 0, 0, 0, 0);  // left button down
     hid_wait(50);
     tud_hid_mouse_report(2, 0x00, 0, 0, 0, 0);  // release
@@ -244,7 +273,7 @@ static void mouse_click(void)
 
 static void type_string(const char *str)
 {
-    for (int i = 0; str[i]; i++) {
+    for (int i = 0; str[i] && !g_cancelled; i++) {
         hid_key_t k = ascii_to_hid(str[i]);
         type_key(k.key, k.modifier, 20);
     }

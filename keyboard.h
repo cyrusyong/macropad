@@ -7,8 +7,8 @@
 void keyboard_init(uint led_pin);
 
 bool autoclicker_on(bool button_pressed);
-void open_application(bool button_pressed, const char *application_name);
-void send_disc_message(bool button_pressed, const char *username, const char *message);
+void open_application(bool button_pressed, uint button_pin, const char *application_name);
+void send_disc_message(bool button_pressed, uint button_pin, const char *username, const char *message);
 bool shutdown_task(bool button_pressed);
 
 
