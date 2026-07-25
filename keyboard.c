@@ -31,8 +31,20 @@ static hid_key_t ascii_to_hid(char c);
 #define DISCORD_OPEN_MS     800   // wait for Discord window to appear
 #define WINR_SETTLE_MS      500   // wait after Win+R before typing
 
+// tud_hid_keyboard_report()/tud_hid_mouse_report() return false and drop the
+// report if the HID endpoint hasn't finished sending the previous report yet.
+// All report sends must wait for tud_hid_ready() first, otherwise a dropped
+// release report leaves the last key held down on the host forever.
+static inline void hid_report_ready_wait(void)
+{
+    while (!tud_hid_ready()) {
+        tud_task();
+    }
+}
+
 static inline void release_all_keys(void)
 {
+    hid_report_ready_wait();
     tud_hid_keyboard_report(1, 0, NULL);
 }
 
@@ -77,6 +89,7 @@ bool autoclicker_on(bool button_pressed)
             }
         } else if (now >= next_send) {
             uint8_t keys[6] = {HID_KEY_F};
+            hid_report_ready_wait();
             tud_hid_keyboard_report(1, 0, keys);
             key_down    = true;
             key_down_at = now;
@@ -107,6 +120,7 @@ void open_application(bool button_pressed, uint button_pin, const char *applicat
             g_cancel_pin  = button_pin;
             g_cancel_prev = true;
             g_cancelled   = false;
+            g_cancel_debounce_at = 0;
             gpio_put(g_led_pin, true);
             // Close Start Menu if open
             type_key(HID_KEY_ESCAPE, 0, KEY_WAIT_MS);
@@ -150,6 +164,7 @@ void send_disc_message(bool button_pressed, uint button_pin, const char *usernam
             g_cancel_pin  = button_pin;
             g_cancel_prev = true;
             g_cancelled   = false;
+            g_cancel_debounce_at = 0;
             gpio_put(g_led_pin, true);
 
             // Focus Discord via Start Menu, then wait for it to open
@@ -256,6 +271,7 @@ static void type_key(uint8_t key, uint8_t modifier, uint32_t ms_wait)
 {
     if (g_cancelled) return;
     uint8_t keys[6] = {key};
+    hid_report_ready_wait();
     tud_hid_keyboard_report(1, modifier, keys);
     hid_wait(ms_wait);
     release_all_keys();
@@ -265,8 +281,10 @@ static void type_key(uint8_t key, uint8_t modifier, uint32_t ms_wait)
 static void mouse_click(void)
 {
     if (g_cancelled) return;
+    hid_report_ready_wait();
     tud_hid_mouse_report(2, 0x01, 0, 0, 0, 0);  // left button down
     hid_wait(50);
+    hid_report_ready_wait();
     tud_hid_mouse_report(2, 0x00, 0, 0, 0, 0);  // release
     hid_wait(50);
 }

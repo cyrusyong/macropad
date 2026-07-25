@@ -41,7 +41,7 @@ int main()
         open_application(gpio_get(SW_2), SW_2, "genshin impact");
 
         // SW_3: Open Discord, search for user, send them something
-        send_disc_message(gpio_get(SW_3), SW_3, "johns creek shooter", "CYRUUSUSUSUSUSS I LOVE YOU OMGOGMOGOGMG!!");
+        send_disc_message(gpio_get(SW_3), SW_3, "johns creek shooter", "HI CYRUUUUUUUUUUUSSSSSSSS!!!!!");
 
         // SW_4: Shutdown PC after 30 seconds, abort if needed
         bool shutdown_led = shutdown_task(gpio_get(SW_4));
